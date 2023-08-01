@@ -3,7 +3,8 @@ use std::mem::MaybeUninit;
 use std::ops::*;
 #[allow(unused_imports)]
 use std::ptr::*;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
+use atomic_shim::AtomicU64;
 
 use super::duration::*;
 #[allow(unused_imports)]
