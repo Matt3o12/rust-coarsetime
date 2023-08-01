@@ -4,6 +4,7 @@ use std::ops::*;
 #[allow(unused_imports)]
 use std::ptr::*;
 use std::sync::atomic::Ordering;
+use std::sync::Mutex;
 use atomic_shim::AtomicU64;
 
 use super::duration::*;
@@ -18,7 +19,7 @@ use super::helpers::*;
 #[derive(Copy, Clone, Debug, Hash, Ord, Eq, PartialOrd, PartialEq)]
 pub struct Instant(u64);
 
-static RECENT: AtomicU64 = AtomicU64::new(0);
+static RECENT: Mutex<u64> = Mutex::new(0);
 
 #[cfg(windows)]
 extern "system" {
@@ -217,18 +218,19 @@ impl Instant {
 
     #[inline]
     fn _update(now: u64) {
-        RECENT.store(now, Ordering::Relaxed)
+        *RECENT.lock().unwrap() = now;
     }
 
     #[inline]
     fn _recent() -> u64 {
-        let recent = RECENT.load(Ordering::Relaxed);
-        if recent != 0 {
-            recent
+        let mut recent = RECENT.lock().unwrap();
+        if *recent != 0 {
+            *recent
         } else {
-            let now = Self::_now();
-            Self::_update(now);
-            Self::_recent()
+            let now = _now();
+            _update(now);
+            drop(recent); // Drop the lock before the recursive call to avoid deadlock
+            _recent()
         }
     }
 }
