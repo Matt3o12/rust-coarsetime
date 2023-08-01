@@ -226,8 +226,8 @@ impl Instant {
             *recent
         } else {
             let now = Self::_now();
+            drop(recent); // Drop the lock before the update call to prevent deadlock
             Self::_update(now);
-            drop(recent); // Drop the lock before the recursive call to avoid deadlock
             Self::_recent()
         }
     }
