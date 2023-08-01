@@ -3,9 +3,7 @@ use std::mem::MaybeUninit;
 use std::ops::*;
 #[allow(unused_imports)]
 use std::ptr::*;
-use std::sync::atomic::Ordering;
 use std::sync::Mutex;
-use atomic_shim::AtomicU64;
 
 use super::duration::*;
 #[allow(unused_imports)]
@@ -223,14 +221,14 @@ impl Instant {
 
     #[inline]
     fn _recent() -> u64 {
-        let mut recent = RECENT.lock().unwrap();
+        let recent = RECENT.lock().unwrap();
         if *recent != 0 {
             *recent
         } else {
-            let now = _now();
-            _update(now);
+            let now = Self::_now();
+            Self::_update(now);
             drop(recent); // Drop the lock before the recursive call to avoid deadlock
-            _recent()
+            Self::_recent()
         }
     }
 }
