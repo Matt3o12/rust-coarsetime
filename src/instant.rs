@@ -3,7 +3,6 @@ use std::mem::MaybeUninit;
 use std::ops::*;
 #[allow(unused_imports)]
 use std::ptr::*;
-use std::sync::Mutex;
 
 use super::duration::*;
 #[allow(unused_imports)]
@@ -17,7 +16,10 @@ use super::helpers::*;
 #[derive(Copy, Clone, Debug, Hash, Ord, Eq, PartialOrd, PartialEq)]
 pub struct Instant(u64);
 
-static RECENT: Mutex<u64> = Mutex::new(0);
+#[cfg(target_has_atomic = "64")]
+static RECENT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+#[cfg(not(target_has_atomic = "64"))]
+static RECENT: std::sync::Mutex<u64> = std::sync::Mutex::new(0);
 
 #[cfg(windows)]
 extern "system" {
@@ -216,17 +218,23 @@ impl Instant {
 
     #[inline]
     fn _update(now: u64) {
-        *RECENT.lock().unwrap() = now;
+        #[cfg(target_has_atomic = "64")]
+        RECENT.store(now, std::sync::atomic::Ordering::Relaxed);
+        #[cfg(not(target_has_atomic = "64"))]
+        {*RECENT.lock().unwrap() = now;}
     }
 
     #[inline]
     fn _recent() -> u64 {
-        let recent = RECENT.lock().unwrap();
-        if *recent != 0 {
-            *recent
+        #[cfg(target_has_atomic = "64")]
+        let recent = RECENT.load(std::sync::atomic::Ordering::Relaxed);
+        #[cfg(not(target_has_atomic = "64"))]
+        let recent = *RECENT.lock().unwrap();
+
+        if recent != 0 {
+            recent
         } else {
             let now = Self::_now();
-            drop(recent); // Drop the lock before the update call to prevent deadlock
             Self::_update(now);
             Self::_recent()
         }

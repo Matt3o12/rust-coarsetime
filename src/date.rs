@@ -3,7 +3,6 @@ use std::mem::MaybeUninit;
 use std::ops::*;
 #[allow(unused_imports)]
 use std::ptr::*;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::duration::*;
 #[allow(unused_imports)]
@@ -13,7 +12,10 @@ use super::helpers::*;
 #[derive(Copy, Clone, Debug, Hash, Ord, Eq, PartialOrd, PartialEq)]
 pub struct Date(u64);
 
-static RECENT: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_has_atomic = "64")]
+static RECENT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+#[cfg(not(target_has_atomic = "64"))]
+static RECENT: std::sync::Mutex<u64> = std::sync::Mutex::new(0);
 
 #[cfg(any(target_os = "macos", target_os = "freebsd"))]
 #[allow(non_camel_case_types)]
@@ -209,12 +211,19 @@ impl Date {
 
     #[inline]
     fn _update(now: u64) {
-        RECENT.store(now, Ordering::Relaxed)
+        #[cfg(target_has_atomic = "64")]
+        RECENT.store(now, std::sync::atomic::Ordering::Relaxed);
+        #[cfg(not(target_has_atomic = "64"))]
+        {*RECENT.lock().unwrap() = now;}
     }
 
     #[inline]
     fn _recent() -> u64 {
-        let recent = RECENT.load(Ordering::Relaxed);
+        #[cfg(target_has_atomic = "64")]
+        let recent = RECENT.load(std::sync::atomic::Ordering::Relaxed);
+        #[cfg(not(target_has_atomic = "64"))]
+        let recent = *RECENT.lock().unwrap();
+
         if recent != 0 {
             recent
         } else {
